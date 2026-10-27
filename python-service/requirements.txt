@@ -1,0 +1,4 @@
+# Runtime dependencies. FastAPI membawa Starlette (ASGI) + Pydantic (validasi).
+fastapi>=0.115,<1.0
+# [standard] = uvloop (event loop berbasis libuv, seperti Node) + httptools (parser HTTP C)
+uvicorn[standard]>=0.34,<1.0

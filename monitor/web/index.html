@@ -1,0 +1,521 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Language Benchmark Monitor</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #0d1117; --panel: #161b22; --panel2: #1c232c; --border: #2a323d;
+    --text: #e6edf3; --muted: #8b949e; --go: #00add8; --rust: #f46623;
+    --php: #8f96d6; --node: #5fa04e; --java: #e5b100; --python: #e86fb0;
+    --good: #3fb950; --bad: #f85149; --warn: #d29922;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  header { display: flex; align-items: center; gap: 12px; padding: 14px 20px; border-bottom: 1px solid var(--border); position: sticky; top: 0; background: var(--bg); z-index: 5; }
+  header h1 { font-size: 18px; margin: 0; }
+  header h1 .go { color: var(--go); } header h1 .rust { color: var(--rust); }
+  .conn { margin-left: auto; font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--bad); }
+  .dot.on { background: var(--good); }
+  main { padding: 16px 20px 40px; max-width: 1600px; margin: 0 auto; display: grid; gap: 16px; }
+  .card { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; min-width: 0; }
+  .card h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 0 0 10px; }
+  .top { display: grid; grid-template-columns: minmax(300px, 520px) 1fr; gap: 16px; align-items: start; }
+  .kpi-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 16px; }
+  .note { font-size: 12px; color: var(--warn); margin-top: 6px; }
+  label { display: block; font-size: 12px; color: var(--muted); margin: 8px 0 3px; }
+  select, input[type=number] { width: 100%; background: var(--panel2); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 6px 8px; font: inherit; }
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .row3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+  .checks { display: flex; gap: 14px; margin-top: 4px; flex-wrap: wrap; }
+  .checks label { display: flex; align-items: center; gap: 6px; margin: 0; color: var(--text); font-size: 14px; }
+  .hint { font-size: 12px; color: var(--muted); margin-top: 6px; min-height: 34px; }
+  .btns { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+  button { background: var(--panel2); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 7px 14px; font: inherit; cursor: pointer; }
+  button:hover:not(:disabled) { border-color: var(--muted); }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  button.primary { background: #238636; border-color: #2ea043; }
+  button.danger { background: #8e1519; border-color: #da3633; }
+  .progress { height: 6px; background: var(--panel2); border-radius: 3px; overflow: hidden; margin-top: 12px; }
+  .progress > div { height: 100%; width: 0; background: linear-gradient(90deg, var(--go), var(--rust)); transition: width .4s; }
+  .status-line { font-size: 12px; color: var(--muted); margin-top: 6px; }
+  .kpi-head { display: flex; align-items: baseline; gap: 8px; margin-bottom: 8px; }
+  .kpi-head .name { font-size: 18px; font-weight: 700; }
+  .kpi-head .ver { font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .kpi-head .badge { margin-left: auto; font-size: 11px; padding: 2px 8px; border-radius: 10px; background: var(--bad); color: #fff; }
+  .kpi-head .badge.up { background: #238636; }
+  .kpis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .kpi { background: var(--panel2); border-radius: 8px; padding: 8px 10px; }
+  .kpi .v { font-size: 20px; font-weight: 650; font-variant-numeric: tabular-nums; }
+  .kpi .l { font-size: 11px; color: var(--muted); }
+  .runtime { font-size: 12px; color: var(--muted); margin-top: 8px; font-variant-numeric: tabular-nums; }
+  .card.go { border-top: 3px solid var(--go); } .card.rust { border-top: 3px solid var(--rust); }
+  .card.php { border-top: 3px solid var(--php); } .card.node { border-top: 3px solid var(--node); } .card.java { border-top: 3px solid var(--java); }
+  .card.python { border-top: 3px solid var(--python); }
+  .charts { display: grid; grid-template-columns: repeat(auto-fill, minmax(420px, 1fr)); gap: 16px; }
+  .chart-box { position: relative; height: 220px; }
+  .chart-card h3 { margin: 0 0 2px; font-size: 14px; }
+  .chart-card p { margin: 0 0 8px; font-size: 12px; color: var(--muted); }
+  table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--border); }
+  th { font-size: 12px; color: var(--muted); font-weight: 600; }
+  td.num { text-align: right; } th.num { text-align: right; }
+  td.win { color: var(--good); font-weight: 650; }
+  td.win::after { content: " ★"; }
+  .verdict { margin: 12px 0 0; padding-left: 18px; }
+  .verdict li { margin: 3px 0; }
+  .go-c { color: var(--go); font-weight: 650; } .rust-c { color: var(--rust); font-weight: 650; }
+  .php-c { color: var(--php); font-weight: 650; } .node-c { color: var(--node); font-weight: 650; } .java-c { color: var(--java); font-weight: 650; }
+  .python-c { color: var(--python); font-weight: 650; }
+  .ok { color: var(--good); } .fail { color: var(--bad); }
+  .bottom { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .hist-item { padding: 8px; border-bottom: 1px solid var(--border); cursor: pointer; font-size: 13px; }
+  .hist-item:hover { background: var(--panel2); }
+  pre { white-space: pre-wrap; word-break: break-all; background: var(--panel2); padding: 8px; border-radius: 6px; font-size: 12px; margin: 4px 0; }
+  details summary { cursor: pointer; }
+  .empty { color: var(--muted); font-size: 13px; }
+  .scroll { overflow-x: auto; }
+  @media (max-width: 1100px) { .top, .bottom { grid-template-columns: 1fr; } .charts, .kpi-row { grid-template-columns: 1fr; } }
+  @media (max-width: 520px) { main { padding: 12px 16px 32px; } .kpis { grid-template-columns: repeat(2, 1fr); } .row3 { grid-template-columns: 1fr 1fr; } }
+</style>
+</head>
+<body>
+<header>
+  <h1><span class="go-c">Go</span> · <span class="rust-c">Rust</span> · <span class="php-c">PHP</span> · <span class="node-c">Node.js</span> · <span class="java-c">Java</span> · <span class="python-c">Python</span> — Live Benchmark Monitor</h1>
+  <div class="conn"><span class="dot" id="conn-dot"></span><span id="conn-text">menghubungkan…</span></div>
+</header>
+
+<main>
+  <section class="top">
+    <div class="card">
+      <h2>Test control</h2>
+      <label>Target</label>
+      <div class="checks" id="target-checks"></div>
+      <div class="note" id="target-note"></div>
+      <div class="row">
+        <div>
+          <label for="scenario">Skenario</label>
+          <select id="scenario">
+            <option value="hello">hello — overhead HTTP</option>
+            <option value="json">json — parse &amp; serialize</option>
+            <option value="cpu">cpu — fibonacci</option>
+            <option value="store">store — shared state + lock</option>
+            <option value="mixed">mixed — campuran</option>
+          </select>
+        </div>
+        <div>
+          <label for="mode">Mode</label>
+          <select id="mode">
+            <option value="load">load — konstan</option>
+            <option value="stress">stress — naik bertahap</option>
+            <option value="spike">spike — lonjakan</option>
+          </select>
+        </div>
+      </div>
+      <div class="hint" id="hint"></div>
+      <div class="row3">
+        <div><label for="conc">Virtual users</label><input type="number" id="conc" value="50" min="1" max="2000"></div>
+        <div><label for="dur">Durasi (detik)</label><input type="number" id="dur" value="30" min="5" max="600"></div>
+        <div><label for="cpun">fib n</label><input type="number" id="cpun" value="25" min="1" max="35"></div>
+      </div>
+      <div class="btns">
+        <button class="primary" id="btn-start">▶ Start</button>
+        <button class="danger" id="btn-stop" disabled>■ Stop</button>
+        <button id="btn-verify">✓ Verifikasi kesamaan fungsi</button>
+        <button id="btn-clear">Bersihkan grafik</button>
+      </div>
+      <div class="progress"><div id="progress"></div></div>
+      <div class="status-line" id="status-line">Idle — grafik tetap menampilkan CPU/memori saat idle.</div>
+    </div>
+
+    <div class="kpi-row" id="kpi-row"></div>
+  </section>
+
+  <section class="charts" id="charts"></section>
+
+  <section class="card">
+    <h2>Hasil test terakhir</h2>
+    <div id="summary"><p class="empty">Belum ada test. Jalankan test lalu tabel perbandingan muncul di sini.</p></div>
+  </section>
+
+  <section class="bottom">
+    <div class="card">
+      <h2>Verifikasi fungsi (contract test)</h2>
+      <div id="verify"><p class="empty">Klik "Verifikasi kesamaan fungsi" untuk mengirim request identik ke kedua service dan membandingkan response.</p></div>
+    </div>
+    <div class="card">
+      <h2>Riwayat test</h2>
+      <div id="history"><p class="empty">Belum ada.</p></div>
+    </div>
+  </section>
+</main>
+
+<script>
+const LANGS = ['go', 'rust', 'php', 'node', 'java', 'python'];
+const META = {
+  go:   { name: 'Go',      color: '#00add8' },
+  rust: { name: 'Rust',    color: '#f46623' },
+  php:  { name: 'PHP',     color: '#8f96d6' },
+  node: { name: 'Node.js', color: '#5fa04e' },
+  java: { name: 'Java',    color: '#e5b100' },
+  python: { name: 'Python', color: '#e86fb0' },
+};
+const COLORS = Object.fromEntries(LANGS.map(l => [l, META[l].color]));
+const DEFAULT_CHECKED = LANGS;
+const MAX_POINTS = 300;
+
+const SCENARIO_HINTS = {
+  hello: 'Routing + JSON kecil: "biaya dasar" HTTP stack. Go net/http, Rust hyper, PHP nginx→FastCGI→bootstrap per request, Node node:http, Java Tomcat+Spring MVC, Python uvicorn+FastAPI.',
+  json: 'Parse body 100 angka + statistik + serialize. Reflection (Go, Jackson) vs compile-time (serde) vs native JSON engine (V8, PHP ext/json) vs validasi runtime Pydantic (Python).',
+  cpu: 'Fibonacci rekursif, murni CPU. AOT (Go gc, LLVM) vs JIT (V8, HotSpot C2, PHP tracing JIT) vs interpreter (CPython, sangat lambat). Node: event loop terblokir; Python: GIL.',
+  store: '80% baca / 20% tulis. Go RWMutex, Rust RwLock, Java ConcurrentHashMap, Node & Python dict/Map tanpa lock (satu event loop), PHP APCu shared memory antar proses.',
+  mixed: 'Campuran semua endpoint, mendekati traffic nyata.',
+};
+const MODE_HINTS = {
+  load: 'Jumlah VU konstan sepanjang durasi.',
+  stress: 'VU naik 10% → 100% dalam 10 anak tangga. Cari titik jenuh: RPS berhenti naik, latency melonjak.',
+  spike: 'Baseline 10% VU, melonjak ke 100% pada 40–60% durasi, lalu turun. Lihat seberapa cepat pulih.',
+};
+
+// ---------- charts ----------
+const CHARTS = [
+  { id: 'rps', title: 'Throughput (req/s)', desc: 'Request selesai per detik. Lebih tinggi = lebih baik.', get: tp => tp.load ? tp.load.rps : null },
+  { id: 'p50', title: 'Latency p50 (ms)', desc: 'Median — pengalaman request "biasa".', get: tp => tp.load && tp.load.latency.count ? tp.load.latency.p50_ms : null },
+  { id: 'p99', title: 'Latency p99 (ms)', desc: 'Tail latency: 1% request terlambat. Jeda GC & antrean muncul di sini.', get: tp => tp.load && tp.load.latency.count ? tp.load.latency.p99_ms : null },
+  { id: 'err', title: 'Error rate (%)', desc: 'Response non-2xx atau gagal koneksi/timeout.', get: tp => tp.load ? tp.load.error_rate * 100 : null },
+  { id: 'cpu', title: 'CPU (% dari 1 core)', desc: '200% = 2 core penuh. Dibatasi oleh CPU_LIMIT di docker-compose.', get: tp => tp.up ? tp.cpu_percent : null },
+  { id: 'mem', title: 'Memory (MB)', desc: 'RSS proses. PHP: total PSS seluruh proses (nginx + FPM workers). JVM & Go menyisakan ruang untuk GC.', get: tp => tp.up ? tp.rss_bytes / 1048576 : null },
+  { id: 'threads', title: 'OS threads', desc: 'Thread OS. Goroutine/tokio task/virtual thread di-multiplex di atasnya; PHP = 1 thread per proses worker.', get: tp => tp.up ? tp.threads : null },
+  { id: 'scrape', title: 'Waktu respons /metrics (ms)', desc: 'Responsivitas endpoint ringan saat service sibuk.', get: tp => tp.up ? tp.scrape_ms : null },
+];
+
+Chart.defaults.color = '#8b949e';
+Chart.defaults.borderColor = '#2a323d';
+Chart.defaults.font.family = 'system-ui, sans-serif';
+
+const charts = {};
+const chartsEl = document.getElementById('charts');
+for (const def of CHARTS) {
+  const card = document.createElement('div');
+  card.className = 'card chart-card';
+  card.innerHTML = `<h3></h3><p></p><div class="chart-box"><canvas></canvas></div>`;
+  card.querySelector('h3').textContent = def.title;
+  card.querySelector('p').textContent = def.desc;
+  chartsEl.appendChild(card);
+  charts[def.id] = new Chart(card.querySelector('canvas'), {
+    type: 'line',
+    data: {
+      labels: [],
+      datasets: LANGS.map(l => ({
+        label: META[l].name, data: [], borderColor: COLORS[l], backgroundColor: COLORS[l] + '22',
+        borderWidth: 2, pointRadius: 0, tension: 0.25, fill: false, spanGaps: false,
+      })),
+    },
+    options: {
+      animation: false, responsive: true, maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: { legend: { labels: { boxWidth: 12 } }, tooltip: { callbacks: { label: c => `${c.dataset.label}: ${c.parsed.y == null ? '–' : fmt(c.parsed.y)}` } } },
+      scales: { x: { ticks: { maxTicksLimit: 8, maxRotation: 0 } }, y: { beginAtZero: true } },
+    },
+  });
+}
+
+function addPoint(p, update = true) {
+  const label = new Date(p.t).toLocaleTimeString('id-ID', { hour12: false });
+  for (const def of CHARTS) {
+    const ch = charts[def.id];
+    ch.data.labels.push(label);
+    LANGS.forEach((l, i) => {
+      const tp = p.targets[l];
+      const v = tp ? def.get(tp) : null;
+      ch.data.datasets[i].data.push(v == null || !isFinite(v) ? null : v);
+    });
+    if (ch.data.labels.length > MAX_POINTS) {
+      ch.data.labels.shift();
+      ch.data.datasets.forEach(d => d.data.shift());
+    }
+    if (update) ch.update('none');
+  }
+}
+
+function clearCharts() {
+  for (const ch of Object.values(charts)) {
+    ch.data.labels = [];
+    ch.data.datasets.forEach(d => d.data = []);
+    ch.update('none');
+  }
+}
+
+// ---------- formatting ----------
+function fmt(v, digits) {
+  if (v == null || !isFinite(v)) return '–';
+  if (digits != null) return v.toLocaleString('id-ID', { maximumFractionDigits: digits, minimumFractionDigits: digits });
+  const a = Math.abs(v);
+  const d = a >= 1000 ? 0 : a >= 100 ? 1 : a >= 1 ? 2 : 3;
+  return v.toLocaleString('id-ID', { maximumFractionDigits: d });
+}
+const mb = b => b / 1048576;
+function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+function langName(l) { return META[l] ? META[l].name : l; }
+
+// ---------- target checkboxes & KPI cards ----------
+for (const l of LANGS) {
+  const lab = el('label');
+  const cb = el('input');
+  cb.type = 'checkbox'; cb.id = 't-' + l; cb.checked = DEFAULT_CHECKED.includes(l);
+  cb.onchange = updateTargetNote;
+  lab.append(cb, el('span', l + '-c', langName(l)));
+  document.getElementById('target-checks').append(lab);
+
+  const card = el('div', 'card ' + l);
+  card.id = 'kpi-' + l;
+  document.getElementById('kpi-row').append(card);
+}
+function updateTargetNote() {
+  const n = LANGS.filter(l => document.getElementById('t-' + l).checked).length;
+  document.getElementById('target-note').textContent = n > 3
+    ? `${n} target sekaligus berbagi CPU host yang sama dengan load generator. Untuk angka presisi, bandingkan 2–3 target per test.`
+    : '';
+}
+updateTargetNote();
+
+function runtimeLine(lang, rt) {
+  switch (lang) {
+    case 'go': return `goroutines ${rt.goroutines ?? '–'} · heap ${fmt(mb(rt.heap_alloc_bytes || 0), 1)} MB · GC cycles ${rt.gc_cycles ?? '–'} · GOMAXPROCS ${rt.gomaxprocs ?? '–'}`;
+    case 'rust': return `tokio workers ${rt.tokio_workers ?? '–'} · alive tasks ${rt.alive_tasks ?? '–'} · tanpa GC`;
+    case 'php': return `FPM workers ${rt.fpm_workers ?? '–'} · proses ${rt.processes ?? '–'} · JIT ${rt.jit ? 'on' : 'off'} · APCu ${fmt(mb(rt.apcu_used_bytes || 0), 1)} MB`;
+    case 'node': return `event loop delay p99 ${fmt(rt.event_loop_delay_p99_ms)} ms (max ${fmt(rt.event_loop_delay_max_ms)}) · heap ${fmt(mb(rt.heap_used_bytes || 0), 1)} MB`;
+    case 'java': return `heap ${fmt(mb(rt.heap_used_bytes || 0), 1)}/${fmt(mb(rt.heap_max_bytes || 0), 0)} MB · ${rt.gc ?? ''} ${rt.gc_count ?? '–'}× (${rt.gc_time_ms ?? '–'} ms) · CPU ${rt.available_processors ?? '–'}`;
+    case 'python': return `GIL ${rt.gil ? 'on' : 'off'} · threads Python ${rt.python_threads ?? '–'} · asyncio tasks ${rt.asyncio_tasks ?? '–'} · GC ${rt.gc_collections ?? '–'}×`;
+    default: return '';
+  }
+}
+
+function renderKPI(lang, tp) {
+  const box = document.getElementById('kpi-' + lang);
+  if (!box) return;
+  box.replaceChildren();
+  const head = el('div', 'kpi-head');
+  head.append(el('span', 'name ' + lang + '-c', langName(lang)), el('span', 'ver', tp && tp.version ? tp.version : ''));
+  const badge = el('span', 'badge' + (tp && tp.up ? ' up' : ''), tp && tp.up ? 'UP' : 'DOWN');
+  head.append(badge);
+  box.append(head);
+
+  const load = tp && tp.load;
+  const items = [
+    ['req/s', load ? fmt(load.rps) : '–'],
+    ['p50 ms', load && load.latency.count ? fmt(load.latency.p50_ms) : '–'],
+    ['p99 ms', load && load.latency.count ? fmt(load.latency.p99_ms) : '–'],
+    ['CPU %', tp && tp.up ? fmt(tp.cpu_percent, 1) : '–'],
+    ['RSS MB', tp && tp.up ? fmt(mb(tp.rss_bytes), 1) : '–'],
+    ['error %', load ? fmt(load.error_rate * 100, 2) : '–'],
+  ];
+  const grid = el('div', 'kpis');
+  for (const [l, v] of items) { const k = el('div', 'kpi'); k.append(el('div', 'v', v), el('div', 'l', l)); grid.append(k); }
+  box.append(grid);
+
+  if (tp && tp.up) {
+    box.append(el('div', 'runtime', `threads ${tp.threads} · requests ${tp.requests_total.toLocaleString('id-ID')} · uptime ${fmt(tp.uptime_sec, 0)}s`));
+    box.append(el('div', 'runtime', runtimeLine(lang, tp.runtime || {})));
+  }
+}
+
+// ---------- status / controls ----------
+const $ = id => document.getElementById(id);
+function setRunning(st) {
+  $('btn-start').disabled = st.running;
+  $('btn-stop').disabled = !st.running;
+  if (st.running && st.config) {
+    const pct = Math.min(100, st.elapsed_sec / st.config.duration_sec * 100);
+    $('progress').style.width = pct + '%';
+    $('status-line').textContent = `Berjalan ${st.run_id}: ${st.config.scenario}/${st.config.mode} · ${st.vus} VU aktif · ${fmt(st.elapsed_sec, 0)}/${st.config.duration_sec}s · target: ${st.config.targets.join(', ')}`;
+  } else {
+    $('progress').style.width = '0';
+    $('status-line').textContent = 'Idle — grafik tetap menampilkan CPU/memori saat idle.';
+  }
+}
+
+function updateHint() {
+  const s = $('scenario').value, m = $('mode').value;
+  $('hint').textContent = SCENARIO_HINTS[s] + ' ' + MODE_HINTS[m];
+}
+$('scenario').onchange = updateHint; $('mode').onchange = updateHint; updateHint();
+
+$('btn-start').onclick = async () => {
+  const targets = LANGS.filter(l => $('t-' + l).checked);
+  if (!targets.length) { alert('Pilih minimal satu target.'); return; }
+  const cfg = {
+    targets, scenario: $('scenario').value, mode: $('mode').value,
+    concurrency: +$('conc').value, duration_sec: +$('dur').value, cpu_n: +$('cpun').value,
+  };
+  const r = await fetch('/api/test/start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(cfg) });
+  const j = await r.json();
+  if (!r.ok) { alert('Gagal start: ' + j.error); return; }
+  $('btn-start').disabled = true; $('btn-stop').disabled = false;
+};
+$('btn-stop').onclick = () => fetch('/api/test/stop', { method: 'POST' });
+$('btn-clear').onclick = clearCharts;
+
+// ---------- summary ----------
+const METRICS = [
+  { label: 'Total request', get: s => s.requests, better: 'high', d: 0 },
+  { label: 'Throughput rata-rata (req/s)', get: s => s.avg_rps, better: 'high' },
+  { label: 'Throughput puncak (req/s)', get: s => s.peak_rps, better: 'high' },
+  { label: 'Latency mean (ms)', get: s => s.latency.mean_ms, better: 'low' },
+  { label: 'Latency p50 (ms)', get: s => s.latency.p50_ms, better: 'low' },
+  { label: 'Latency p95 (ms)', get: s => s.latency.p95_ms, better: 'low' },
+  { label: 'Latency p99 (ms)', get: s => s.latency.p99_ms, better: 'low' },
+  { label: 'Latency max (ms)', get: s => s.latency.max_ms, better: 'low' },
+  { label: 'Error rate (%)', get: s => s.error_rate * 100, better: 'low', d: 2 },
+  { label: 'CPU rata-rata (%)', get: s => s.avg_cpu, better: 'low', d: 1 },
+  { label: 'CPU puncak (%)', get: s => s.peak_cpu, better: 'low', d: 1 },
+  { label: 'Memory RSS puncak (MB)', get: s => s.peak_rss_mb, better: 'low', d: 1 },
+  { label: 'CPU-detik terpakai', get: s => s.cpu_seconds, better: 'low', d: 2 },
+  { label: 'Efisiensi (request per CPU-detik)', get: s => s.req_per_cpu_sec, better: 'high', d: 0 },
+];
+
+function renderSummary(s) {
+  const box = $('summary');
+  box.replaceChildren();
+  const c = s.config;
+  box.append(el('p', null, `${s.id} · skenario ${c.scenario} · mode ${c.mode} · ${c.concurrency} VU · ${fmt(s.duration_sec, 1)} s${s.stopped ? ' · dihentikan manual' : ''}`));
+
+  const wrap = el('div', 'scroll');
+  const table = el('table');
+  const thead = el('tr');
+  thead.append(el('th', null, 'Metrik'));
+  for (const t of s.targets) { const th = el('th', 'num ' + t.target + '-c', langName(t.target)); thead.append(th); }
+  const multi = s.targets.length >= 2;
+  if (multi) thead.append(el('th', 'num', 'Terbaik vs terburuk'));
+  table.append(thead);
+
+  for (const m of METRICS) {
+    const tr = el('tr');
+    tr.append(el('td', null, m.label));
+    const vals = s.targets.map(t => m.get(t));
+    let best = -1;
+    if (multi && vals.every(v => isFinite(v)) && new Set(vals).size > 1) {
+      best = vals.indexOf(m.better === 'high' ? Math.max(...vals) : Math.min(...vals));
+    }
+    vals.forEach((v, i) => tr.append(el('td', 'num' + (i === best ? ' win' : ''), fmt(v, m.d))));
+    if (multi) {
+      const ratio = vals.every(v => v > 0) ? Math.max(...vals) / Math.min(...vals) : null;
+      tr.append(el('td', 'num', ratio ? '×' + fmt(ratio, 2) : '–'));
+    }
+    table.append(tr);
+  }
+  wrap.append(table);
+  box.append(wrap);
+
+  if (multi) box.append(verdict(s.targets));
+}
+
+// Untuk tiap metrik kunci: siapa terbaik dan berapa kali lebih baik dari masing-masing lawan.
+function verdict(ts) {
+  const ul = el('ul', 'verdict');
+  const line = (label, get, better) => {
+    const vals = ts.map(get);
+    if (!vals.every(v => v > 0)) return;
+    const wi = vals.indexOf(better === 'high' ? Math.max(...vals) : Math.min(...vals));
+    const others = ts
+      .map((t, i) => ({ t, r: better === 'high' ? vals[wi] / vals[i] : vals[i] / vals[wi] }))
+      .filter((_, i) => i !== wi)
+      .sort((a, b) => a.r - b.r)
+      .map(({ t, r }) => `×${fmt(r, 2)} vs ${langName(t.target)}`)
+      .join(', ');
+    const li = el('li');
+    li.append(el('span', ts[wi].target + '-c', langName(ts[wi].target)), document.createTextNode(` terbaik di ${label}: ${others}`));
+    ul.append(li);
+  };
+  line('throughput', t => t.avg_rps, 'high');
+  line('tail latency p99', t => t.latency.p99_ms, 'low');
+  line('pemakaian memori', t => t.peak_rss_mb, 'low');
+  line('efisiensi CPU (req per CPU-detik)', t => t.req_per_cpu_sec, 'high');
+  const failing = ts.filter(t => t.error_rate > 0.01).map(t => langName(t.target));
+  if (failing.length) {
+    ul.append(el('li', 'fail', `Error rate > 1% pada ${failing.join(', ')}: service sudah melewati kapasitasnya, sehingga angka latency/throughput-nya tidak lagi representatif.`));
+  }
+  return ul;
+}
+
+async function loadResults() {
+  const r = await fetch('/api/results');
+  const list = await r.json();
+  const box = $('history');
+  box.replaceChildren();
+  if (!list.length) { box.append(el('p', 'empty', 'Belum ada.')); return list; }
+  for (const s of list) {
+    const parts = s.targets.map(t => `${langName(t.target)} ${fmt(t.avg_rps)} req/s`).join(' · ');
+    const item = el('div', 'hist-item', `${new Date(s.started_at).toLocaleTimeString('id-ID', { hour12: false })} — ${s.config.scenario}/${s.config.mode}, ${s.config.concurrency} VU — ${parts}`);
+    item.onclick = () => { renderSummary(s); $('summary').scrollIntoView({ behavior: 'smooth' }); };
+    box.append(item);
+  }
+  return list;
+}
+
+// ---------- verify ----------
+$('btn-verify').onclick = async () => {
+  const box = $('verify');
+  box.replaceChildren(el('p', 'empty', 'Menjalankan…'));
+  const r = await fetch('/api/verify', { method: 'POST' });
+  const rows = await r.json();
+  const passed = rows.filter(x => x.match).length;
+  box.replaceChildren(el('p', passed === rows.length ? 'ok' : 'fail', `${passed}/${rows.length} kasus identik`));
+  const wrap = el('div', 'scroll');
+  const table = el('table');
+  const h = el('tr');
+  ['Kasus', 'Request', ...LANGS.map(langName), 'Hasil'].forEach(t => h.append(el('th', null, t)));
+  table.append(h);
+  for (const row of rows) {
+    const tr = el('tr');
+    const det = el('details');
+    det.append(el('summary', null, row.name));
+    if (row.request) det.append(el('pre', null, 'body: ' + row.request));
+    for (const l of LANGS) {
+      const res = row.results[l];
+      if (res) det.append(el('pre', null, `${langName(l)} → ${res.status} ${res.err || res.body}`));
+    }
+    const td0 = el('td'); td0.append(det);
+    tr.append(td0, el('td', null, `${row.method} ${row.path}`));
+    for (const l of LANGS) {
+      const res = row.results[l];
+      tr.append(el('td', null, res ? (res.err ? 'ERR' : `${res.status} · ${fmt(res.latency_ms)}ms`) : '–'));
+    }
+    tr.append(el('td', row.match ? 'ok' : 'fail', (row.match ? '✓ ' : '✗ ') + row.note));
+    table.append(tr);
+  }
+  wrap.append(table);
+  box.append(wrap);
+};
+
+// ---------- live stream ----------
+function onTick(p) {
+  addPoint(p);
+  for (const l of LANGS) renderKPI(l, p.targets[l]);
+  setRunning(p.status || { running: false });
+}
+
+async function init() {
+  LANGS.forEach(l => renderKPI(l, null));
+  try {
+    const hist = await (await fetch('/api/history')).json();
+    for (const p of hist) addPoint(p, false);
+    Object.values(charts).forEach(c => c.update('none'));
+    if (hist.length) onTick(hist[hist.length - 1]);
+    const results = await loadResults();
+    if (results.length) renderSummary(results[0]);
+  } catch (e) { console.error(e); }
+
+  const es = new EventSource('/api/stream');
+  es.onopen = () => { $('conn-dot').classList.add('on'); $('conn-text').textContent = 'live'; };
+  es.onerror = () => { $('conn-dot').classList.remove('on'); $('conn-text').textContent = 'terputus, mencoba lagi…'; };
+  es.addEventListener('tick', e => onTick(JSON.parse(e.data)));
+  es.addEventListener('summary', e => { renderSummary(JSON.parse(e.data)); loadResults(); });
+}
+init();
+</script>
+</body>
+</html>

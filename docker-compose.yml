@@ -1,0 +1,94 @@
+name: app-polyglot-api-bench
+
+# Semua service mendapat batas CPU & memori IDENTIK supaya perbandingan adil.
+# Ubah lewat file .env (lihat .env.example) tanpa menyentuh file ini.
+# Default 1 CPU: 6 service x 1 CPU + load generator masih muat di host 8 core.
+# Untuk duel 2 bahasa, CPU_LIMIT=2 lebih menarik (multi-core).
+x-limits: &limits
+  cpus: ${CPU_LIMIT:-1}
+  mem_limit: ${MEM_LIMIT:-256m}
+  restart: unless-stopped
+
+services:
+  go-api:
+    <<: *limits
+    build: ./go-service
+    image: gorust/go-service:latest
+    ports:
+      - "${GO_PORT:-8081}:8080"
+    environment:
+      PORT: "8080"
+      # Tokio (via Rust std) & JVM membaca batas CPU container untuk jumlah worker.
+      # Go baru melakukannya sejak 1.25 (hanya jika go.mod >= 1.25, dan tidak selalu
+      # terdeteksi di cgroup v1/hybrid seperti Docker Desktop WSL2). Tanpa ini Go
+      # memakai SEMUA core host -> context switch & throttling. Jadi set eksplisit.
+      # Karena itu CPU_LIMIT sebaiknya bilangan bulat.
+      GOMAXPROCS: ${CPU_LIMIT:-1}
+
+  rust-api:
+    <<: *limits
+    build: ./rust-service
+    image: gorust/rust-service:latest
+    ports:
+      - "${RUST_PORT:-8082}:8080"
+    environment:
+      PORT: "8080"
+
+  php-api:
+    <<: *limits
+    build: ./php-service
+    image: gorust/php-service:latest
+    ports:
+      - "${PHP_PORT:-8083}:8080"
+    environment:
+      # Konkurensi PHP-FPM = jumlah proses worker (1 request per worker).
+      PHP_WORKERS: ${PHP_WORKERS:-8}
+      PHP_JIT: ${PHP_JIT:-tracing}
+      NGINX_WORKERS: ${CPU_LIMIT:-1}
+
+  node-api:
+    <<: *limits
+    build: ./node-service
+    image: gorust/node-service:latest
+    ports:
+      - "${NODE_PORT:-8084}:8080"
+    environment:
+      PORT: "8080"
+
+  java-api:
+    <<: *limits
+    build: ./java-service
+    image: gorust/java-service:latest
+    ports:
+      - "${JAVA_PORT:-8085}:8080"
+    environment:
+      PORT: "8080"
+
+  python-api:
+    <<: *limits
+    build: ./python-service
+    image: gorust/python-service:latest
+    ports:
+      - "${PYTHON_PORT:-8086}:8080"
+
+  # Monitor sengaja TIDAK dibatasi CPU: load generator tidak boleh jadi bottleneck.
+  monitor:
+    build: ./monitor
+    image: gorust/monitor:latest
+    ports:
+      - "${MONITOR_PORT:-8080}:8080"
+    environment:
+      GO_URL: http://go-api:8080
+      RUST_URL: http://rust-api:8080
+      PHP_URL: http://php-api:8080
+      NODE_URL: http://node-api:8080
+      JAVA_URL: http://java-api:8080
+      PYTHON_URL: http://python-api:8080
+    depends_on:
+      - go-api
+      - rust-api
+      - php-api
+      - node-api
+      - java-api
+      - python-api
+    restart: unless-stopped

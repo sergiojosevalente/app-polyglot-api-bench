@@ -1,0 +1,16 @@
+[package]
+name = "rust-service"
+version = "0.1.0"
+edition = "2021"
+
+# Go: hampir semua dari standard library. Rust: std sengaja kecil,
+# HTTP server/async runtime/JSON datang dari crate komunitas.
+[dependencies]
+axum = "0.8"                                        # web framework (router + extractor)
+tokio = { version = "1", features = ["full"] }      # async runtime (padanan scheduler goroutine)
+serde = { version = "1", features = ["derive"] }    # (de)serialisasi lewat macro, compile-time
+serde_json = "1"
+
+[profile.release]
+lto = "thin"        # link-time optimization lintas crate
+codegen-units = 1   # optimasi lebih agresif, build lebih lambat

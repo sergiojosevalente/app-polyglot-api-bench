@@ -1,0 +1,9 @@
+[project]
+name = "python-service"
+version = "0.1.0"
+description = "Padanan Python (FastAPI) dari go-service & rust-service"
+requires-python = ">=3.12"
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]

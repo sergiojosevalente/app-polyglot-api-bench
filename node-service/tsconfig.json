@@ -1,0 +1,16 @@
+{
+  // Hanya untuk type-check (npm run typecheck) & editor. Saat runtime, Node menjalankan
+  // file .ts langsung dengan "type stripping": anotasi tipe dihapus, tidak dicek.
+  "compilerOptions": {
+    "target": "es2024",
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "strict": true,
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
+    "erasableSyntaxOnly": true,
+    "verbatimModuleSyntax": true,
+    "types": ["node"]
+  },
+  "include": ["src", "test"]
+}

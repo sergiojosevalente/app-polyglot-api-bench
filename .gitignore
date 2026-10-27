@@ -1,0 +1,6 @@
+.env
+rust-service/target/
+php-service/vendor/
+node-service/node_modules/
+java-service/target/
+*.exe

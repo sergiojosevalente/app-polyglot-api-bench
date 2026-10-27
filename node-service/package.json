@@ -1,0 +1,19 @@
+{
+  "name": "node-service",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Padanan Node.js (TypeScript) dari go-service & rust-service",
+  "type": "module",
+  "engines": {
+    "node": ">=22.18"
+  },
+  "scripts": {
+    "start": "node src/main.ts",
+    "test": "node --test test/*.test.ts",
+    "typecheck": "tsc"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "^5.8.0"
+  }
+}
